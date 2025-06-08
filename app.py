@@ -49,19 +49,15 @@ def contains_bad_word_loose(text: str, bad_words: set) -> set:
             if not bw:
                 continue
 
-            # 1) 정확 일치
             if t == bw:
-                # 뒤에 명사 + 비욕설이면 합성명사(ex: 새끼손가락) 스킵
                 if idx+1 < len(tokens) and tokens[idx+1][1] == 'Noun' \
                    and tokens[idx+1][0].lower() not in bad_words:
                     continue
                 found.add(bw)
 
-            # 2) 접두사 케이스 (예: '개새끼구나', '멍청하지')
             elif t.startswith(bw):
                 suffix = t[len(bw):]
                 sp = okt.pos(suffix, norm=True, stem=True)
-                # suffix가 단일 명사 + 비욕설이면 합성명사 스킵
                 if len(sp) == 1 and sp[0][1] == 'Noun' and sp[0][0].lower() not in bad_words:
                     continue
                 found.add(bw)
