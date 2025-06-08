@@ -8,6 +8,8 @@ from google.cloud import texttospeech, speech
 import librosa
 from dotenv import load_dotenv
 import soundfile as sf
+from konlpy.tag import Okt
+
 
 st.set_page_config(page_title="✨ 음성 클렌징 & 합성 데모", layout="centered")
 
@@ -35,10 +37,37 @@ def load_hate_pipeline(model_path: str):
     return pipeline("text-classification", model=model_path, tokenizer=model_path)
 
 # ──────────────────────────────────────────────────────
-# 핵심 처리 함수
+# 핵심 처리 함수 
+okt = Okt()
 def contains_bad_word_loose(text: str, bad_words: set) -> set:
-    return {bw for bw in bad_words if bw and bw in text.lower()}
+    found = set()
+    tokens = okt.pos(text, norm=True, stem=True)
 
+    for idx, (tok, tag) in enumerate(tokens):
+        t = tok.lower()
+        for bw in bad_words:
+            if not bw:
+                continue
+
+            # 1) 정확 일치
+            if t == bw:
+                # 뒤에 명사 + 비욕설이면 합성명사(ex: 새끼손가락) 스킵
+                if idx+1 < len(tokens) and tokens[idx+1][1] == 'Noun' \
+                   and tokens[idx+1][0].lower() not in bad_words:
+                    continue
+                found.add(bw)
+
+            # 2) 접두사 케이스 (예: '개새끼구나', '멍청하지')
+            elif t.startswith(bw):
+                suffix = t[len(bw):]
+                sp = okt.pos(suffix, norm=True, stem=True)
+                # suffix가 단일 명사 + 비욕설이면 합성명사 스킵
+                if len(sp) == 1 and sp[0][1] == 'Noun' and sp[0][0].lower() not in bad_words:
+                    continue
+                found.add(bw)
+
+    return found
+    
 def sanitize_text(text: str) -> str:
     prompt = f"""
 다음 문장을 고객의 말투를 유지하면서, 욕설 및 무례한 표현을 제거하고 공손한 표현으로 바꿔줘:
