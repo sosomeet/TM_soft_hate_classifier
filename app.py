@@ -39,28 +39,38 @@ def load_hate_pipeline(model_path: str):
 # ──────────────────────────────────────────────────────
 # 핵심 처리 함수 
 okt = Okt()
-def contains_bad_word_loose(text: str, bad_words: set) -> set:
-    found = set()
-    tokens = okt.pos(text, norm=True, stem=True)
+okt = Okt()
 
+# 핵심 처리 함수
+def contains_bad_word_loose(text: str, bad_words: set) -> set:
+    found = set()  # 욕설을 찾은 단어들을 저장할 set
+    tokens = okt.pos(text, norm=True, stem=True)  # 형태소 분석
+    
     for idx, (tok, tag) in enumerate(tokens):
-        t = tok.lower()
+        t = tok.lower()  # 소문자로 변환하여 일관된 비교
         for bw in bad_words:
             if not bw:
                 continue
 
-            if t == bw:
-                if idx+1 < len(tokens) and tokens[idx+1][1] == 'Noun' \
-                   and tokens[idx+1][0].lower() not in bad_words:
-                    continue
-                found.add(bw)
+            # 1. "새끼" 뒤에 명사가 오면 거르는 로직 (예외 처리)
+            if t == '새끼':  
+                # "새끼" 뒤에 명사 + 욕설이 아니면 거른다
+                if idx + 1 < len(tokens) and tokens[idx + 1][1] == 'Noun' and tokens[idx + 1][0].lower() not in bad_words:
+                    continue  # 일반 명사인 경우 예외 처리
+                found.add(bw)  # 예외가 아니면 욕설로 처리
+                break  # "새끼"는 한 번만 처리하고 종료
 
+            # 2. 정확히 일치하는 욕설 찾기
+            elif t == bw:
+                found.add(bw)  # 정확히 일치하면 욕설로 추가
+
+            # 3. 접두사 일치하는 욕설 찾기
             elif t.startswith(bw):
-                suffix = t[len(bw):]
-                sp = okt.pos(suffix, norm=True, stem=True)
+                suffix = t[len(bw):]  # 접두사 이후 남은 부분
+                sp = okt.pos(suffix, norm=True, stem=True)  # 접미사 처리
                 if len(sp) == 1 and sp[0][1] == 'Noun' and sp[0][0].lower() not in bad_words:
-                    continue
-                found.add(bw)
+                    continue  # 뒤에 명사가 오고 그 명사가 욕설이 아니면 스킵
+                found.add(bw)  # 접두사가 욕설인 경우 추가
 
     return found
     
