@@ -5,6 +5,7 @@ from transformers import pipeline
 from google.cloud import texttospeech, speech
 from dotenv import load_dotenv
 from streamlit_mic_recorder import mic_recorder
+from konlpy.tag import Okt
 
 st.set_page_config(page_title="✨ 음성 클렌징 & 합성 데모", layout="centered")
 
@@ -101,7 +102,7 @@ def contains_bad_word_loose(text: str, bad_words: set) -> set:
     return {bw for bw in bad_words if bw and bw in text.lower()}  # 욕설 목록에 있는 단어가 text에 있으면 추가
 
 
-이 코드의 리턴값을 def contains_bad_word_loose(text: str, bad_words: set) -> set:
+def contains_bad_word_loose(text: str, bad_words: set) -> set:
     return {bw for bw in bad_words if bw and bw in text.lower()}
 def sanitize_text(text: str) -> str:
     prompt = f"""
@@ -188,7 +189,7 @@ if audio:
         label = hate_pipe(transcript)[0]
         is_hate = label['label'] == 'LABEL_1'
         if is_hate:
-            st.warning(f"⚠️ 혐오 표현 감지됨 (신뢰도: {label['score']:.2f})")
+            st.warning(f"⚠️ 혐오 표현 감지됨")
             cleaned = sanitize_text(transcript)
         else:
             st.success("✅ 혐오 표현도 발견되지 않음. 원문 그대로 사용됩니다.")
