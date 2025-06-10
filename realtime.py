@@ -101,9 +101,6 @@ def contains_bad_word_loose(text: str, bad_words: set) -> set:
     
     return {bw for bw in bad_words if bw and bw in text.lower()}  # 욕설 목록에 있는 단어가 text에 있으면 추가
 
-
-def contains_bad_word_loose(text: str, bad_words: set) -> set:
-    return {bw for bw in bad_words if bw and bw in text.lower()}
 def sanitize_text(text: str) -> str:
     prompt = f"""
 다음 문장을 고객의 말투를 유지하면서, 욕설 및 무례한 표현을 제거하고 공손한 표현으로 바꿔줘:
