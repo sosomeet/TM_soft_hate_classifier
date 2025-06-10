@@ -34,14 +34,13 @@ def load_hate_pipeline(model_path: str):
 
 # ─────────────────────────────────────────────────────## 핵심 처리 함수 ##
 okt = Okt()
-def contains_bad_word_loose(text: str, bad_words: set) -> set:
-    found = set()  # 욕설을 찾은 단어들을 저장할 set
 
+def contains_bad_word_loose(text: str, bad_words: set) -> bool:
     # 1차 필터링: 띄어쓰기로 구분된 욕설 단어 확인
     words = text.split()  # 공백으로 단어 분리
     for word in words:
         if word.lower() in bad_words:  # 욕설 목록에 정확히 일치하면 추가
-            found.add(word.lower())
+            return True  # 욕설 발견 시 True 반환
 
     # 2차 필터링: 형태소 분석을 통한 욕설 체크
     tokens = okt.pos(text, norm=True, stem=True)  # 형태소 분석
@@ -52,55 +51,37 @@ def contains_bad_word_loose(text: str, bad_words: set) -> set:
             if not bw:
                 continue
 
-            # 1. "개"에 대한 예외 처리: "개" + 욕설, 욕설 + "개"
+            # 예외 처리: "개", "년", "새끼", "자식" 등
+            if t == bw:
+                return True  # 정확히 일치하는 욕설 찾으면 True 반환
+
+            # 예외 처리 로직: "개", "년", "새끼", "자식" 등
             if t == '개':
                 if idx + 1 < len(tokens) and tokens[idx + 1][0].lower() in bad_words:  # "개" 뒤에 욕설
-                    found.add(bw)
-                    break
+                    return True
                 if idx - 1 >= 0 and tokens[idx - 1][0].lower() in bad_words:  # 욕설 + "개"
-                    found.add(bw)
-                    break
-                continue  # "개"는 단독일 때 욕설 아님
+                    return True
+                continue
 
-            # 2. "년"에 대한 예외 처리: 숫자와 함께 있을 때는 욕설이 아님
             if t == '년':
                 if idx - 1 >= 0 and tokens[idx - 1][1] == 'Number':  # "3년", "5년"은 욕설 아님
                     continue
-                found.add(bw)  # "년"이 욕설 + 결합되면 욕설로 감지
-                break
+                return True
 
-            # 3. "새끼"에 대한 예외 처리: "새끼" 뒤에 명사인 경우는 욕설 아님
             if t == '새끼':
                 if idx + 1 < len(tokens) and tokens[idx + 1][1] == 'Noun' and tokens[idx + 1][0].lower() not in bad_words:
-                    continue  # 일반 명사라면 예외 처리
-                found.add(bw)  # 욕설 + "새끼", "새끼" + 욕설은 욕설로 처리
-                break
+                    continue
+                return True
 
-            # 4. "자식"에 대한 예외 처리: "자식"은 욕설과 결합될 때만 욕설로 처리
             if t == '자식':
                 if idx - 1 >= 0 and (tokens[idx - 1][0].lower() in bad_words or tokens[idx - 1][0].lower() == '개'):
-                    found.add(bw)
-                    break
+                    return True
                 if idx + 1 < len(tokens) and tokens[idx + 1][0].lower() in bad_words:
-                    found.add(bw)
-                    break
-                continue  # "자식"은 단독으로 욕설이 아님
+                    return True
+                continue
 
-            # 5. 정확히 일치하는 욕설 찾기
-            elif t == bw:
-                found.add(bw)  # 정확히 일치하면 욕설로 추가
-
-            # 6. 접두사 일치하는 욕설 찾기
-            elif t.startswith(bw):
-                suffix = t[len(bw):]  # 접두사 이후 남은 부분
-                sp = okt.pos(suffix, norm=True, stem=True)  # 접미사 처리
-                if len(sp) == 1 and sp[0][1] == 'Noun' and sp[0][0].lower() not in bad_words:
-                    continue  # 뒤에 명사가 오고 그 명사가 욕설이 아니면 스킵
-                found.add(bw)  # 접두사가 욕설인 경우 추가
-
+    return False  # 욕설이 없으면 False 반환
     
-    return {bw for bw in bad_words if bw and bw in text.lower()}  # 욕설 목록에 있는 단어가 text에 있으면 추가
-
 def sanitize_text(text: str) -> str:
     prompt = f"""
 다음 문장을 고객의 말투를 유지하면서, 욕설 및 무례한 표현을 제거하고 공손한 표현으로 바꿔줘:
@@ -108,8 +89,7 @@ def sanitize_text(text: str) -> str:
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": """
-    """}, 
+            {"role": "system", "content": "당신은 고객의 말을 공손하게 바꿔주는 역할을 합니다."}, 
             {"role": "user", "content": prompt + text}
         ],
         temperature=0.7
@@ -178,7 +158,7 @@ if audio:
     # 욕설/혐오 탐지 및 순화, TTS (기존 코드와 동일)
     swears = contains_bad_word_loose(transcript, load_bad_words(EXTENDED_FILE))
     if swears:
-        st.warning(f"⚠️ 욕설 발견됨: {', '.join(swears)}")
+        st.warning(f"⚠️ 욕설 발견됨")
         cleaned = sanitize_text(transcript)
     else:
         st.info("✅ 욕설 없음. 혐오 표현 분석으로 넘어갑니다.")
